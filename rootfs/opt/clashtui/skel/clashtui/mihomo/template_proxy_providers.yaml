@@ -1,0 +1,7 @@
+# Define proxy-provider subscription URLs here, organized by group.
+# In templates use ${PPG.<group>} to reference all providers in a group.
+#
+# Example:
+#   pvd:
+#     pvd0: "https://example.com/sub1.yaml"
+#     pvd1: "https://example.com/sub2.yaml"

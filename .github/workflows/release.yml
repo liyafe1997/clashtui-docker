@@ -1,0 +1,103 @@
+name: release
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild and overwrite the release even if it already exists
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths: [Dockerfile, rootfs/**, .github/workflows/release.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  versions:
+    runs-on: ubuntu-latest
+    outputs:
+      clashtui: ${{ steps.v.outputs.clashtui }}
+      mihomo: ${{ steps.v.outputs.mihomo }}
+      tag: ${{ steps.v.outputs.tag }}
+      skip: ${{ steps.v.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          clashtui=$(gh release view --repo JohanChane/clashtui --json tagName -q .tagName)
+          mihomo=$(gh release view --repo MetaCubeX/mihomo --json tagName -q .tagName)
+          tag="${clashtui}-mihomo-${mihomo}"
+          skip=false
+          if [ "$FORCE" != "true" ] && gh release view "$tag" >/dev/null 2>&1; then
+            echo "release $tag already exists, skipping"
+            skip=true
+          fi
+          printf 'clashtui=%s\nmihomo=%s\ntag=%s\nskip=%s\n' "$clashtui" "$mihomo" "$tag" "$skip" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: versions
+    if: needs.versions.outputs.skip == 'false'
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    env:
+      TAG: ${{ needs.versions.outputs.tag }}
+      FILE: clashtui-docker-${{ needs.versions.outputs.tag }}-${{ matrix.arch }}.tar.gz
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          docker build \
+            --build-arg CLASHTUI_VERSION=${{ needs.versions.outputs.clashtui }} \
+            --build-arg MIHOMO_VERSION=${{ needs.versions.outputs.mihomo }} \
+            -t clashtui:$TAG -t clashtui:latest .
+      - name: Smoke test
+        run: |
+          docker run -d --name smoke --network host clashtui:latest
+          sleep 5
+          docker exec smoke rc-service clashtui_mihomo status | grep -q started
+          docker exec smoke clashtui --version
+          curl -fsS http://127.0.0.1:9090/version
+          docker stop smoke
+      - name: Save
+        run: docker save clashtui:$TAG clashtui:latest | gzip -9 > "$FILE"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.arch }}
+          path: ${{ env.FILE }}
+          compression-level: 0
+
+  release:
+    needs: [versions, build]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.versions.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish
+        run: |
+          cd dist
+          sha256sum *.tar.gz > sha256sums.txt
+          notes="clashtui ${{ needs.versions.outputs.clashtui }} + mihomo ${{ needs.versions.outputs.mihomo }}
+
+          \`\`\`sh
+          docker load -i clashtui-docker-$TAG-<amd64|arm64>.tar.gz
+          \`\`\`"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" --clobber *
+          else
+            gh release create "$TAG" --title "$TAG" --notes "$notes" *
+          fi

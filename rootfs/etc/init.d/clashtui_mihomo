@@ -1,0 +1,11 @@
+#!/sbin/openrc-run
+
+supervisor="supervise-daemon"
+name="clashtui_mihomo"
+description="mihomo Daemon, Another Clash Kernel."
+command="/opt/clashtui/mihomo/mihomo"
+command_args="-d /data/mihomo"
+pidfile="/run/${RC_SVCNAME}.pid"
+umask="002"
+output_log="/proc/1/fd/1"
+error_log="/proc/1/fd/2"

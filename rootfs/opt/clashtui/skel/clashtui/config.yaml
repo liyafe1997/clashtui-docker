@@ -1,0 +1,13 @@
+mihomo:
+  core:
+    config_dir: /data/mihomo
+    bin_path: /opt/clashtui/mihomo/mihomo
+    config_path: /data/mihomo/config.yaml
+  core_service:
+    service_name: clashtui_mihomo
+    is_user: false
+    service_controller: openrc
+timeout: null
+extra:
+  edit_cmd:
+  open_dir_cmd:
