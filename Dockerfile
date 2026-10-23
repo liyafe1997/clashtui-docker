@@ -39,6 +39,8 @@ RUN set -eu; \
     # default configs and templates from the matching clashtui release
     base="https://raw.githubusercontent.com/JohanChane/clashtui/${CLASHTUI_VERSION}/contrib"; \
     curl -fsSL "$base/default_configs/mihomo/core_override_config_no_tun.yaml" -o $skel/clashtui/mihomo/core_override_config.yaml; \
+    # mihomo >= 1.19.33 reports stack "Mips" when unset, which clashtui cannot parse
+    sed -i '/^tun:/a\  stack: mixed' $skel/clashtui/mihomo/core_override_config.yaml; \
     cp $skel/clashtui/mihomo/core_override_config.yaml $skel/mihomo/config.yaml; \
     curl -fsSL "$base/default_configs/default_keymap.yaml" -o $skel/clashtui/default_keymap.yaml; \
     curl -fsSL "$base/default_configs/default_theme.yaml" -o $skel/clashtui/default_theme.yaml; \

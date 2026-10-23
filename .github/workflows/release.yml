@@ -35,7 +35,8 @@ jobs:
           mihomo=$(gh release view --repo MetaCubeX/mihomo --json tagName -q .tagName)
           tag="${clashtui}-mihomo-${mihomo}"
           skip=false
-          if [ "$FORCE" != "true" ] && gh release view "$tag" >/dev/null 2>&1; then
+          # Pushes always rebuild (and overwrite) the current release; scheduled runs only build new versions.
+          if [ "$FORCE" != "true" ] && [ "$GITHUB_EVENT_NAME" != "push" ] && gh release view "$tag" >/dev/null 2>&1; then
             echo "release $tag already exists, skipping"
             skip=true
           fi
